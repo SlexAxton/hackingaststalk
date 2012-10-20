@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+
+    <title>Hacking ASTs | Alex Sexton | Empire.js, yo</title>
+
+    <meta name="description" content="">
+    <meta name="author" content="Alex Sexton">
+
+    <link href='css/fonts.css' rel='stylesheet' type='text/css'>
+
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/print.css" type="text/css" media="print">
+
+    <link rel="stylesheet" href="lib/zenburn.css">
+    <style type="text/css">
+      body .reveal .slides {
+        width : 1280px;
+        margin-left : -640px;
+      }
+      .reveal pre code {
+        font-size : 34px;
+        line-height : 38px;
+      }
+      .reveal pre.thin {
+        width: 67%;
+      }
+      .reveal .oneliner {
+        padding-top : 12%;
+        font-size : 1.4em;
+      }
+      .reveal .oneliner h3 {
+        line-height: 1;
+      }
+      .reveal .tall {
+        margin-top: -60px;
+      }
+      body .reveal em {
+        font-style : normal;
+        font-size : 1.2em;
+        color : #A6E22E;
+      }
+      body .reveal .oneliner em {
+        text-transform : uppercase;
+        font-weight : bold;
+      }
+      .reveal aside.notes {
+        display: none;
+      }
+      .reveal button {
+        font-size: 62px;
+        font-weight: bold;
+        padding: 10px;
+        background-color: transparent;
+        color: #AEEE00;
+        border: none;
+        line-height: 72px;
+        cursor: pointer;
+      }
+      .reveal button:hover {
+        font-size: 72px;
+        color: #FFFFFF;
+        line-height:72px;
+      }
+    </style>
+  </head>
+
+  <body>
+
+    <div class="reveal">
+
+      <!-- Used to fade in a background when a specific slide state is reached -->
+      <div class="state-background"></div>
+
+      <!-- Any section element inside of this container is displayed as a slide -->
+      <div class="slides">
+        <section data-markdown class="oneliner">
+          ## Hacking ASTs
+
+          <script>
+            // Delicously hacky. Look away.
+          if( navigator.userAgent.match( /(iPhone|iPad|iPod|Android)/i ) ) document.write( '<p style="color: rgba(0,0,0,0.3); text-shadow: none;">('+'Tap to navigate'+')</p>' );
+          </script>
+        </section>
+
+        <section>
+          <section data-markdown>
+            ## Me (Alex)
+
+            <img src="img/alexsexton.jpg" alt="alex sexton" style="width:25%;" />
+          </section>
+
+          <section data-markdown class="oneliner">
+            I *like* to build JavaScript programs
+          </section>
+
+          <section data-markdown class="oneliner">
+            8 inch vertical jump
+
+            &nbsp;
+
+            *Bench* 115 lbs
+
+            *Squat* 250 lbs
+          </section>
+        </section>
+
+        <section>
+          <section data-markdown class="oneliner">
+            # *WTF* is an *AST*?
+          </section>
+
+          <section data-markdown>
+            ## *WTF* is an *AST*?
+
+            <br />
+            <ul style="list-style-type:none;">
+              <li>A) Aslan Strawberry Trolley
+              <li>B) African Stipulation Treatment
+              <li>C) Abstract Syntax Tree
+              <li>D) Alaskan Simulation Trampoline
+            </ul>
+          </section>
+
+          <section data-markdown>
+            ## *WTF* is an *AST*?
+
+            <br />
+            <ul style="list-style-type:none;">
+              <li>A) Aslan Strawberry Trolley
+              <li>B) African Stipulation Treatment
+              <li>C) <em style="text-transform:none;">Abstract Syntax Tree</em>
+              <li>D) Alaskan Simulation Trampoline
+            </ul>
+          </section>
+
+          <section>
+            <img style="max-width:60%;border:none;box-shadow:none;" src="img/asttree.png" alt="bad ast joke" />
+          </section>
+
+          <section data-markdown>
+            # *A*bstract
+
+            <br />
+            This just means that everybody does it differently,
+            and that no one has to document anything ever,
+            probably
+          </section>
+
+          <section data-markdown>
+            # *S*yntax
+
+            <br />
+            Most of the time we're dealing with some sort of language
+            or DSL that we're trying to parse, though this isn't strict
+          </section>
+
+          <section data-markdown>
+            # *T*ree
+
+            <br />
+            It is respresented in a *tree* data structure, but those
+            aren't native to JavaScript, so it's just objects of
+            arrays of objects
+          </section>
+
+          <section data-markdown>
+            # *T*ree
+
+            <br />
+            You'll probably need to use recursion
+
+            <small>(cue mass exodus)</small>
+          </section>
+        </section>
+
+
+        ------------
+
+        # How are they made?
+
+        By parsers!
+
+        Some people write parsers by hand, but there are automatic parser generators that are easier to quickly discuss
+
+        The first step is defining a grammar. A set of rules about what means what.
+
+        Grammar for addition only math problems:
+
+        // Base Types
+        number -> /(\d+)/
+        operator -> /(\+)/
+        whitespace -> /\s+/
+
+        // Complex Parts
+        operationRightSide -> operator whitespace? number
+
+        // All together now
+        operation -> number whitespace? operationRightSide+
+
+
+        Then define some objects that describe the different parts
+
+        number = { nodeType: 'number', value: $0 }
+        operator = { nodeType: 'operator', value: $0 }
+        whitespace = {} // we dont really care
+
+        operationRightSide -> { nodeType: 'operationRightSide', statements: [$operatorNode, $numberNode] }
+        operation -> { nodeType: 'operation', statements: [$numberNode, $operationRightSideNode, ...] }
+
+
+        "1 + 2"
+
+        program = {
+          nodeType : 'operation',
+          statements : [
+            {
+              nodeType : 'number',
+              value : "1"
+            },
+            {
+              nodeType : 'operationRightSide',
+              statements : [
+                {
+                  nodeType : 'operator',
+                  value : '+'
+                },
+                {
+                  nodeType : 'number',
+                  value : '2'
+                }
+              ]
+            }
+          ]
+        };
+
+        ---------------------------------------------
+
+        "1 + 2 + 3"
+
+        program = {
+          nodeType : 'operation',
+          statements : [
+            {
+              nodeType : 'number',
+              value : "1"
+            },
+            {
+              nodeType : 'operationRightSide',
+              statements : [
+                {
+                  nodeType : 'operator',
+                  value : '+'
+                },
+                {
+                  nodeType : 'number',
+                  value : '2'
+                }
+              ]
+            },
+            {
+              nodeType : 'operationRightSide',
+              statements : [
+                {
+                  nodeType : 'operator',
+                  value : '+'
+                },
+                {
+                  nodeType : 'number',
+                  value : '3'
+                }
+              ]
+            }
+          ]
+        };
+
+        -----------------------------------------------
+
+        Later someone writes a compiler to read this in, and spit out executable code
+
+        in JS this wouldn't be that interesting, but it could be for more complex DSLs
+
+
+        -----------------------------------------------
+
+        So lots of things are parsed like this (or similar):
+
+        Javascript
+        CSS
+        --- but commonly in js ---
+        Stylus/SASS/Less
+        Mustache/Handlebars/many templating langs
+        MessageFormat (i18n)
+        CoffeeScript/TypeScript/Dart
+
+
+        -----------------------------------------------
+
+        What does this do for us?
+
+        EASY introspection
+
+        -------------------
+
+        We have an easily* traversible representation of the parsed lang
+        this is *data*
+
+        -------------------
+
+        THE KEY
+
+        We have a MUTABLE set of data that is later turned into executable code
+
+        --------------------
+
+        So what happens if we F**k with it? ;)
+
+        lots.
+
+        --------------------
+
+        A compiler just needs a valid AST to do its job. So if we want to change
+        things, we just need to keep it to things the compiler understands.
+
+        --------------------
+
+        # Some hacking I've done
+
+        Templates.
+
+        ---------------------
+
+        Templates kind of suck to get set up in a lot of cases
+
+        var template = "<ul>{{#each items}} <li>{{#customerHelper .}} {{> insideTemplate }} {{/customHelper}}</li> {{/each}}</ul>";
+        var insideTemplate = "{{.}}!";
+        var compiledInsideTemplate = Handlebars.compile(insideTemplate);
+        Handlebars.registerPartial('insideTemplate', compiledInsideTemplate);
+        var customHelper = function (data, options) {
+          return '<em>' + options.fn(data) + '</em>';
+        };
+        Handlebars.registerHelper('customHelper', customHelper);
+        var compiledTemplate = Handlebars.compile(template);
+
+        // FINALLY
+        compiledTemplate({...}); // valid output
+
+        --------------------
+
+        We can do way better than that.
+
+        ---------------------
+
+        What if we parse the template first without compiling?
+
+        var template = "<ul>{{#each items}} <li>{{#customerHelper .}} {{> insideTemplate }} {{/customHelper}}</li> {{/each}}</ul>";
+        var AST = Handlebars.parse(template);
+
+        ---------------------
+
+        now we can go through and find every helper that we
+        need, and every partial that we use, and automatically
+        go get them off the file system, and regsiter them.
+
+        // simplified
+        {
+          nodeType: 'helper',
+          name : 'customHelper'
+        }
+
+        // Fire off a call to get 'helpers/customerHelper.js' off the file system and register it
+
+        ---------------------
+
+        If you add a real dependency management system to this you get my require-handlebars-plugin project.
+
+        It will recursively traverse through a template's AST and find every partial, and list it as a dependency
+        for that template 'module', and does the same for helpers. When it loads the sub-templates the same
+        process happens again and again until all the dependencies are resolved.
+
+        In build mode, I can 'precompile' these directly into AMD modules
+
+        // demo
+
+        ---------------------
+
+        But what about *messing* with the AST?
+
+        ----------------------
+
+        I personally do this for a couple common reasons:
+
+        Conditional SEO output on the server
+        International message switching
+
+        ----------------------
+
+        # A template with server-only parts
+
+        <div>
+          {{#serveronly}}
+            <meta description="..." />
+          {{/serveronly}}
+
+          <p>...</p>
+        </div>
+
+        - In the old world, since you need the `serveronly` block somewhere,
+          it'd get included in the precompiled template that only runs in the client
+          even though there is no possibility that it could run in that environment.
+
+        -- Now
+
+        We can parse through the template a _build_ time, and delete those blocks from the AST before it gets precompiled.
+
+        boom.
+
+        ---------------------
+
+        # Internationalization Message Switching
+
+        <button class="submit">Click here to delete the {NUMMSG, plural, one {message} other {messages} }</button>
+
+        If you want to internationalize that, you could do this:
+
+        <button class="submit">{{#i18n "submitkey" .}}Click here to delete the {NUMMSG, plural, one {message} other {messages} }{{/i18n}}</button>
+
+        Now we can go through all the templates before we build, and precompile our i18n messages into functions.
+
+        Register those functions as unique handlebars helpers, and then replace the entire block with a helper node.
+
+        so once it's compiled, it's:
+
+        <button class="submit">{{_i18n_submitkey .}}</button>
+
+        and
+
+        define('_i18n_submitkey', ['Handlebars', 'messageformat'], function (Handlebars, Messageformat) {
+          var func = function(d){
+            var r = "";
+            r += "Click here to delete the ";
+            if(!d){
+              throw new Error("MessageFormat: No data passed to function.");
+            }
+            var lastkey_1 = "NUMMSG";
+            var k_1=d[lastkey_1];
+            var off_0 = 0;
+            var pf_0 = {
+              "one" : function(d){
+                var r = "";
+                r += "message";
+                return r;
+              },
+              "other" : function(d){
+                var r = "";
+                r += "messages";
+                return r;
+              }
+            };
+            if ( pf_0[ k_1 + "" ] ) {
+              r += pf_0[ k_1 + "" ]( d );
+            }
+            else {
+              r += (pf_0[ MessageFormat.locale["en"]( k_1 - off_0 ) ] || pf_0[ "other" ] )( d );
+            }
+            return r;
+          };
+
+          Handlebars.registerHelper('_i18n_submitkey', func);
+          return func;
+        });
+
+
+
+
+
+        <!--
+        <section data-markdown>
+          <h2></h2>
+          <pre><code contenteditable>
+          </code></pre>
+        </section>
+
+        <section data-markdown class="oneliner">
+
+        </section>
+        -->
+
+        <section data-markdown class="oneliner">
+          ## Questions?
+          ### Alex Sexton | @SlexAxton | [alexsexton.com](http://alexsexton.com)
+        </section>
+      </div>
+
+      <!-- The navigational controls UI -->
+      <aside class="controls">
+        <a class="left" href="#">&#x25C4;</a>
+        <a class="right" href="#">&#x25BA;</a>
+        <a class="up" href="#">&#x25B2;</a>
+        <a class="down" href="#">&#x25BC;</a>
+      </aside>
+
+      <!-- Displays presentation progress, max value changes via JS to reflect # of slides -->
+      <div class="progress"><span></span></div>
+
+    </div>
+
+    <script src="js/reveal.js"></script>
+
+    <!-- Optional libraries for code syntax highlighting and classList support in IE9 -->
+    <script src="lib/highlight.js"></script>
+    <script src="lib/classList.js"></script>
+
+    <script>
+      // Parse the query string into a key/value object
+    var query = {};
+    location.search.replace( /[A-Z0-9]+?=(\w*)/gi, function(a) {
+        query[ a.split( '=' ).shift() ] = a.split( '=' ).pop();
+        } );
+
+    // Fires when a slide with data-state=customevent is activated
+    Reveal.addEventListener( 'customevent', function() {
+        alert( '"customevent" has fired' );
+        } );
+
+    // Fires each time a new slide is activated
+    Reveal.addEventListener( 'slidechanged', function( event ) {
+        // event.indexh & event.indexv
+        } );
+
+    Reveal.initialize({
+        // Display controls in the bottom right corner
+    controls: true,
+
+    // Display a presentation progress bar
+    progress: true,
+
+    // If true; each slide will be pushed to the browser history
+    history: true,
+
+    // Loops the presentation, defaults to false
+    loop: false,
+
+    // Flags if mouse wheel navigation should be enabled
+    mouseWheel: true,
+
+    // Apply a 3D roll to links on hover
+    rollingLinks: true,
+
+    // UI style
+    theme: query.theme || 'default', // default/neon
+
+    // Transition style
+    transition: query.transition || 'default' // default/cube/page/concave/linear(2d)
+    });
+
+    hljs.initHighlightingOnLoad();
+
+    (function boom(){
+
+     if (!window.Showdown){
+     var scr = document.createElement('script');
+     scr.onload = boom;
+     scr.src = 'js/showdown.js';
+     document.body.appendChild(scr);
+     return;
+     }
+
+     [].forEach.call( document.querySelectorAll('[data-markdown]'), function  fn(elem){
+
+       // strip leading whitespace so it isn't evaluated as code
+       var text      = elem.innerHTML.replace(/\n\s*\n/g,'\n'),
+       // set indentation level so your markdown can be indented within your HTML
+       leadingws = text.match(/^\n?(\s*)/)[1].length,
+       regex     = new RegExp('\\n?\\s{' + leadingws + '}','g'),
+       md        = text.replace(regex,'\n'),
+       html      = (new Showdown.converter()).makeHtml(md);
+
+       // here, have sum HTML
+       elem.innerHTML = html;
+
+       });
+
+     }());
+   </script>
+
+    <!-- the next two lines enable the speaker notes server -->
+    <script src="socket.io/socket.io.js"></script>
+    <script>
+(function() {
+  // don't emit events from inside the previews themselves
+  var qs = window.location.href.split('?');
+  if (qs.length > 1 && qs[1].match('receiver')) { return; }
+
+  var socket = io.connect(window.location.origin);
+  var socketId = Math.random().toString().slice(2);
+  console.log('View slide notes at ' + window.location.origin + '/_notes/' + socketId);
+
+  Reveal.addEventListener( 'slidechanged', function( event ) {
+    var nextindexh;
+    var nextindexv;
+    var slideElement = event.currentSlide;
+
+    if (slideElement.nextElementSibling && slideElement.parentNode.nodeName == 'SECTION') {
+      nextindexh = event.indexh;
+      nextindexv = event.indexv + 1;
+    } else {
+      nextindexh = event.indexh + 1;
+      nextindexv = 0;
+    }
+
+    var notes = slideElement.querySelector('aside.notes');
+    var slideData = {
+      notes : notes ? notes.innerHTML : '',
+      indexh : event.indexh,
+      indexv : event.indexv,
+      nextindexh : nextindexh,
+      nextindexv : nextindexv,
+      socketId : socketId
+    };
+
+    socket.emit('slidechanged', slideData);
+  } );
+}());
+    </script>
+
+  </body>
+</html>
