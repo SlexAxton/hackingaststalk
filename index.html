@@ -78,7 +78,7 @@
       <!-- Any section element inside of this container is displayed as a slide -->
       <div class="slides">
         <section data-markdown class="oneliner">
-          ## Hacking ASTs
+          # *Hacking ASTs*
 
           <script>
             // Delicously hacky. Look away.
@@ -178,66 +178,109 @@
         </section>
 
 
-        ------------
+        <section>
+          <section data-markdown class="oneliner">
+            # How are they made?
+          </section>
 
-        # How are they made?
+          <section data-markdown class="oneliner">
+            # By parsers!
+          </section>
 
-        By parsers!
+          <section data-markdown>
+            # Parsers
 
-        Some people write parsers by hand, but there are automatic parser generators that are easier to quickly discuss
+            <br />
 
-        The first step is defining a grammar. A set of rules about what means what.
+            Some people write parsers by hand, but there are automatic parser generators that are easier to quickly discuss
+          </section>
 
-        Grammar for addition only math problems:
+          <section data-markdown>
+            # Parsers
 
-        // Base Types
-        number -> /(\d+)/
-        operator -> /(\+)/
-        whitespace -> /\s+/
+            <br />
 
-        // Complex Parts
-        operationRightSide -> operator whitespace? number
+            The first step is defining a *grammar*.
 
-        // All together now
-        operation -> number whitespace? operationRightSide+
+            A set of rules about what means what.
+          </section>
 
+          <section data-markdown>
+            ## Grammar for addition only math problems
 
-        Then define some objects that describe the different parts
+            <br />
+            <pre><code contenteditable>// Base Types
+number -> /(\d+)/
+operator -> /(\+)/
+whitespace -> /\s+/
+&nbsp;
 
-        number = { nodeType: 'number', value: $0 }
-        operator = { nodeType: 'operator', value: $0 }
-        whitespace = {} // we dont really care
+// Complex Parts
+operationRightSide -> operator whitespace? number
+&nbsp;
 
-        operationRightSide -> { nodeType: 'operationRightSide', statements: [$operatorNode, $numberNode] }
-        operation -> { nodeType: 'operation', statements: [$numberNode, $operationRightSideNode, ...] }
+// All together now
+operation -> number whitespace? operationRightSide+
+            </code></pre>
+          </section>
 
+          <section data-markdown>
+        ## Then define some objects
+        ## that describe the different parts
 
-        "1 + 2"
+<pre><code contenteditable>number = { nodeType: 'number', value: $0 }
+&nbsp;
+operator = { nodeType: 'operator', value: $0 }
+&nbsp;
+whitespace = {} // we dont really care
+</code></pre>
+          </section>
 
-        program = {
-          nodeType : 'operation',
-          statements : [
-            {
-              nodeType : 'number',
-              value : "1"
-            },
-            {
-              nodeType : 'operationRightSide',
-              statements : [
-                {
-                  nodeType : 'operator',
-                  value : '+'
-                },
-                {
-                  nodeType : 'number',
-                  value : '2'
-                }
-              ]
-            }
-          ]
-        };
+          <section data-markdown>
+        ## Then define some objects
+        ## that describe the different parts
 
-        ---------------------------------------------
+<pre><code contenteditable>operationRightSide -> {
+  nodeType: 'operationRightSide',
+  statements: [$operatorNode, $numberNode]
+}
+&nbsp;
+operation -> {
+ nodeType: 'operation',
+ statements: [$numberNode, $operationRightSideNode, ..]
+}
+</code></pre>
+          </section>
+
+          <section data-markdown>
+        ## "1 + 2"
+
+<pre><code contenteditable style="font-size:22px;line-height:24px;">program = {
+  nodeType : 'operation',
+  statements : [
+    {
+      nodeType : 'number',
+      value : "1"
+    },
+    {
+      nodeType : 'operationRightSide',
+      statements : [
+        {
+          nodeType : 'operator',
+          value : '+'
+        },
+        {
+          nodeType : 'number',
+          value : '2'
+        }
+      ]
+    }
+  ]
+};
+</code></pre>
+        </section>
+
+        <!--
 
         "1 + 2 + 3"
 
@@ -277,55 +320,76 @@
           ]
         };
 
-        -----------------------------------------------
+        -->
 
-        Later someone writes a compiler to read this in, and spit out executable code
+        <section data-markdown>
+        ## *Later*
 
-        in JS this wouldn't be that interesting, but it could be for more complex DSLs
+        <br />
+        Someone writes a compiler to read this in
+        and spit out executable code
 
-
-        -----------------------------------------------
-
-        So lots of things are parsed like this (or similar):
-
-        Javascript
-        CSS
-        --- but commonly in js ---
-        Stylus/SASS/Less
-        Mustache/Handlebars/many templating langs
-        MessageFormat (i18n)
-        CoffeeScript/TypeScript/Dart
+      </section>
 
 
-        -----------------------------------------------
+        <section data-markdown>
+        ## So lots of things are parsed
+        ## like this (or similar):
 
-        What does this do for us?
+        <br />
+        <ul>
+          <li>Javascript
+          <li>CSS
+          <li>Stylus/SASS/Less
+          <li>Mustache/Handlebars/many templating langs
+          <li>MessageFormat (i18n)
+          <li>CoffeeScript/TypeScript/Dart
+        </ul>
+      </section>
 
-        EASY introspection
 
-        -------------------
 
-        We have an easily* traversible representation of the parsed lang
-        this is *data*
+        <section data-markdown>
+        ## What does this do for us?
 
-        -------------------
+        <br />
+        <br />
+        # *EASY* introspection
 
-        THE KEY
+      </section>
 
-        We have a MUTABLE set of data that is later turned into executable code
 
-        --------------------
+        <section data-markdown class="oneliner">
+        ## We have an easily* traversible
+        ## representation of the parsed lang
 
-        So what happens if we F**k with it? ;)
+        <br />
+        aka *data*
 
-        lots.
+      </section>
 
-        --------------------
 
-        A compiler just needs a valid AST to do its job. So if we want to change
-        things, we just need to keep it to things the compiler understands.
+        <section data-markdown>
+        ## *THE KEY*
 
-        --------------------
+        <br />
+        We have a *MUTABLE* set of data that is
+        later turned into executable code
+
+      </section>
+
+
+        <section data-markdown>
+        ## So what happens if we F**k with it? ;)
+
+        <br />
+        # *lots.*
+
+        <small>demo time</small>
+      </section>
+
+            </section>
+        <!--
 
         # Some hacking I've done
 
@@ -473,8 +537,37 @@
           return func;
         });
 
+        ------------
+
+        So with a little AST introspection, a little rewriting, and a dependency management tool, we
+        can turn a complex set of required steps into an automatic/unseen process.
+
+        require('hbs!someTemplate', function (template){
+          template();
+        });
+
+        has helpers, partials, and automatically compiled and built international messages!
 
 
+        ------------
+
+        Another cool use-case. Style introspection with Stylus
+
+        in stylus you might have a whole slew of variables that map to alot of different places.
+
+        And you may want to change those variables in real time
+
+        but since Stylus has a non-trivial compile step this would be tough.
+
+        So let's use ASTs to help us out.
+
+        I wrote a parser for the Stylus AST, and add a tiny bit of metadata to variable nodes.
+
+        Then I carry this meta data through the compilation step and am able to mark which variables map to which eventual rules and selectors.
+
+        Then I can serve this data as a reverse variable look up.
+
+        -->
 
 
         <!--
